@@ -38,7 +38,7 @@ public class PurchaseOrder {
     private BigDecimal total;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "varchar(32) default 'PENDING_PAYMENT'")
+    @Column(nullable = false, length = 32)
     private OrderStatus status = OrderStatus.PENDING_PAYMENT;
 
     @Column(nullable = false)
