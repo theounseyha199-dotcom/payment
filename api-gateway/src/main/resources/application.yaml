@@ -1,6 +1,11 @@
 server:
   port: 8080
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/practice}
   application:
     name: api-gateway
   cloud:
@@ -24,6 +29,22 @@ spring:
               uri: lb://payment-service
               predicates:
                 - Path=/payments,/payments/**
+            - id: admin-users
+              uri: lb://user-service
+              predicates:
+                - Path=/admin/users,/admin/users/**
+            - id: admin-products
+              uri: lb://product-service
+              predicates:
+                - Path=/admin/products,/admin/products/**
+            - id: admin-orders
+              uri: lb://order-service
+              predicates:
+                - Path=/admin/orders,/admin/orders/**
+            - id: admin-payments
+              uri: lb://payment-service
+              predicates:
+                - Path=/admin/payments,/admin/payments/**
             - id: user-api-docs
               uri: lb://user-service
               predicates:

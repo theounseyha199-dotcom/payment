@@ -1,6 +1,11 @@
 server:
   port: 8084
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/practice}
   application:
     name: payment-service
   datasource:
@@ -18,8 +23,10 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:}
 bakong:
-  base-url: ${BAKONG_BASE_URL:https://api-bakong.nbc.org.kh}
+  base-url: ${BAKONG_BASE_URL:https://api-bakong.nbc.gov.kh}
   token: ${BAKONG_TOKEN:}
   account-id: ${BAKONG_ACCOUNT_ID:}
   currency: ${BAKONG_CURRENCY:KHR}

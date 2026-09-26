@@ -1,6 +1,11 @@
 server:
   port: 8083
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/practice}
   application:
     name: order-service
   datasource:
@@ -15,3 +20,5 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:}

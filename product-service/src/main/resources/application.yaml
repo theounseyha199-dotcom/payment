@@ -1,6 +1,11 @@
 server:
   port: 8082
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/practice}
   application:
     name: product-service
   datasource:
