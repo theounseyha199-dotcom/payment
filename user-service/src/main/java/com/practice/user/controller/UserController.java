@@ -9,12 +9,16 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/users")
@@ -33,12 +37,21 @@ public class UserController {
                 .body(ApiResult.success("User created successfully.", user));
     }
 
+    @GetMapping("/me")
+    public ApiResult<UserResponse> me(@AuthenticationPrincipal Jwt jwt) {
+        return ApiResult.success("User found.", users.me(jwt));
+    }
+
     @GetMapping("/{id}")
-    public ApiResult<UserResponse> get(@PathVariable Long id) {
-        return ApiResult.success("User found.", users.get(id));
+    public ApiResult<UserResponse> get(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt,
+                                        Authentication authentication) {
+        boolean admin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        return ApiResult.success("User found.", users.getOwned(id, jwt.getSubject(), admin));
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResult<List<UserResponse>> list() {
         return ApiResult.success("Users loaded successfully.", users.list());
     }
