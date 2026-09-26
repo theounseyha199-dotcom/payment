@@ -9,7 +9,7 @@ services or PostgreSQL.
 - Local gateway: `http://localhost:8080`
 - Interactive API docs: `http://localhost:8080/swagger-ui.html`
 - JSON request bodies need `Content-Type: application/json`.
-- The frontend does not need an authorization header for these practice APIs.
+- Protected requests send `Authorization: Bearer <Keycloak access-token>`.
 - The gateway has no browser CORS configuration. If the frontend runs on a
   different origin, configure the frontend development server to proxy `/api`
   to `http://localhost:8080` and remove `/api` from the forwarded path. Then
@@ -20,6 +20,23 @@ services or PostgreSQL.
   [README.md](README.md) for startup commands.
 - Restart the running services after a backend code change so the gateway serves
   the current API.
+
+## Authentication
+
+Login and registration use Keycloak with OpenID Connect. Open the local realm at
+`http://localhost:8180/realms/practice`; the frontend client is `payment-web`.
+The frontend provides **Sign in** and **Register** buttons. Keycloak handles the
+credential screens and registration. On the first authenticated request to
+`GET /users/me`, user-service creates the application profile for that Keycloak
+subject.
+
+Public product reads remain available without login. User profiles, orders, and
+payments require login. `POST /users` and `POST /products` require the `ADMIN`
+realm role. Existing database users and orders are deliberately not linked to
+new Keycloak accounts.
+
+The internal order payment route is never exposed through the gateway. Payment
+service calls it with the private `X-Internal-Service-Token` from `.env`.
 
 ## Response format
 
@@ -72,6 +89,47 @@ All paths below are relative to the gateway base URL.
 | `POST` | `/payments/qr` | `{ "orderId": number }` | Stored payment and dynamic KHQR for the order total in KHR; HTTP `200` |
 | `GET` | `/payments/{paymentId}` | None | Saved payment status, amount, and timestamps |
 | `POST` | `/payments/{paymentId}/verify` | None | `PaymentVerification` |
+
+Administrator endpoints require a Keycloak access token containing the
+`ADMIN` realm role:
+
+| Method | Path | Request body | `data` on success |
+| --- | --- | --- | --- |
+| `GET` | `/admin/users?search=&page=0&size=20&sort=createdAt,desc` | None | Paged safe user profiles |
+| `GET` | `/admin/users/{id}` | None | Safe user profile |
+| `GET` | `/admin/users/stats` | None | User totals and Keycloak-link counts |
+| `GET` | `/admin/products?status=ACTIVE&search=note&page=0&size=20&sort=id,desc` | None | Paged products |
+| `GET` | `/admin/products/{id}` | None | `Product` |
+| `POST` | `/admin/products` | `CreateProduct` | Created `Product`; HTTP `201` |
+| `PATCH` | `/admin/products/{id}` | Partial `{ "name": ..., "price": ... }` | Updated `Product` |
+| `PATCH` | `/admin/products/{id}/status` | `{ "status": "ACTIVE" | "INACTIVE" }` | Updated `Product` |
+| `GET` | `/admin/products/stats` | None | Product totals by status |
+| `GET` | `/admin/orders?status=PENDING_PAYMENT&userId=&from=&to=&page=0&size=20&sort=createdAt,desc` | None | Paged orders |
+| `GET` | `/admin/orders/{id}` | None | `Order` |
+| `GET` | `/admin/orders/stats` | None | Order totals by status and today |
+| `GET` | `/admin/payments` | None | Safe `Payment[]` |
+| `GET` | `/admin/payments/{id}` | None | Safe `Payment` |
+| `POST` | `/admin/payments/{paymentId}/retry-verification` | None | Normal payment verification result |
+| `GET` | `/admin/payments/stats` | None | Payment status totals and verified KHR revenue |
+
+Admin endpoints return `401` when no JWT is supplied and `403` when the JWT
+does not contain `ADMIN`. They do not allow manually marking payments verified
+or orders paid. The `/internal/**` routes remain private and are not routed by
+the gateway.
+
+`/admin/users` accepts `search`, `page`, `size` (1-100), and `sort` (`id`,
+`name`, `email`, `createdAt`, or `keycloakSubject`, followed by `asc` or
+`desc`). Search covers name, email, application ID, and Keycloak subject.
+Product and order admin lists use the same `page`, `size`, and validated `sort`
+pattern. Products support `search` and `status`; orders support `orderId`,
+`userId`, `status`, and inclusive `from`/`to` dates (`YYYY-MM-DD`). Product
+deactivation is soft status change; products are never hard-deleted.
+Payment admin lists additionally support `paymentId`, `orderId`, `status`,
+`currency`, `minAmount`, `maxAmount`, and `from`/`to` dates. Payment retry
+delegates to the same Bakong verification logic as the public verification
+endpoint; it cannot manually set a payment to `VERIFIED`.
+All paged admin responses include `content`, `page`, `size`, `totalElements`,
+`totalPages`, `first`, and `last`.
 
 There are currently no public update, delete, login, or direct charge endpoints.
 `PATCH /internal/orders/{orderId}/payment` belongs to the order service and is
@@ -382,3 +440,33 @@ if (verification.verified && verification.status === "VERIFIED") {
 
 The UI can catch `ApiRequestError`, show its `message`, and display its
 `details` next to form fields.
+# Authentication
+
+The frontend authenticates through Keycloak using OpenID Connect. Open the local
+Keycloak realm at `http://localhost:8180/realms/practice`; the realm allows user
+registration and the frontend client is `payment-web`.
+
+Browser requests send the Keycloak access token as:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+The gateway and backend services validate the JWT. Public product reads remain
+available without login. User profiles, orders, and payments require login.
+`POST /users` and `POST /products` require the `ADMIN` realm role. Existing
+database users and orders are not automatically linked to new Keycloak users.
+
+The internal order payment route is never public. Payment-service calls it with
+the private `X-Internal-Service-Token` configured in the backend `.env` file.
+
+## Login and registration
+
+The frontend provides **Sign in** and **Register** buttons. Registration is
+handled by Keycloak, then the first authenticated call to `GET /users/me`
+creates that account's application profile in user-service.
+
+```http
+GET /users/me
+Authorization: Bearer <access-token>
+```

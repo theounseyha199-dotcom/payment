@@ -26,9 +26,10 @@ Install Java 21 and Docker with Docker Compose. The launcher also uses Bash,
 ```
 
 The script starts PostgreSQL, creates any missing service databases in an
-existing volume, starts Eureka, then starts the other five services. It waits
-until `/users` works through the gateway before reporting that startup is
-complete. The first run can take longer while Gradle downloads dependencies.
+existing volume, starts Keycloak, Eureka, then starts the other five services.
+It waits until the public `/products` route works through the gateway before
+reporting that startup is complete. The first run can take longer while Docker
+and Gradle download dependencies.
 
 Open the [Swagger UI](http://localhost:8080/swagger-ui.html) to browse all four
 APIs, or the [Eureka dashboard](http://localhost:8761) to see registered
@@ -220,8 +221,130 @@ Missing required Bakong configuration returns HTTP 503 with
 Optional payment settings are `BAKONG_MERCHANT_CITY` (default `PHNOM PENH`),
 `BAKONG_ACQUIRING_BANK`, and `BAKONG_ACCOUNT_INFORMATION`. The default
 `BAKONG_CURRENCY` is `KHR`; QR creation requires KHR. `BAKONG_BASE_URL`
-defaults to Bakong's production API and can be overridden for a test
+defaults to `https://api-bakong.nbc.gov.kh` and can be overridden for a test
 environment.
+
+## Admin API
+
+The admin control panel uses Keycloak realm `practice` and requires the
+`ADMIN` realm role. Send an access token issued to an administrator in the
+`Authorization` header. A request without a token returns `401`; a logged-in
+user without `ADMIN` returns `403`.
+
+New `practice` accounts inherit the `USER` realm role. Assign `ADMIN` to a
+specific account in Keycloak **Users → Role mapping → Assign role → Realm
+roles**. Administrators also inherit `USER`; the `ADMIN` role is never a
+default registration role. Sign out and sign in again after changing roles so
+the browser receives a new access token.
+
+### Admin users
+
+```text
+GET /admin/users
+GET /admin/users/{id}
+GET /admin/users/stats
+```
+
+`GET /admin/users` supports `search`, `page`, `size`, and `sort`. Results are
+paginated and the maximum page size is 100.
+
+### Admin products
+
+```text
+GET   /admin/products
+GET   /admin/products/{id}
+POST  /admin/products
+PATCH /admin/products/{id}
+PATCH /admin/products/{id}/status
+GET   /admin/products/stats
+```
+
+Products use `ACTIVE` and `INACTIVE` status. Deactivation is soft; products
+are never hard-deleted. Price values use `BigDecimal` and KHR.
+
+```bash
+curl http://localhost:8080/admin/products \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>'
+
+curl -X POST http://localhost:8080/admin/products \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Notebook","price":5500}'
+
+curl -X PATCH http://localhost:8080/admin/products/1 \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"price":6500}'
+
+curl -X PATCH http://localhost:8080/admin/products/1/status \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"INACTIVE"}'
+```
+
+### Admin orders
+
+```text
+GET /admin/orders
+GET /admin/orders/{id}
+GET /admin/orders/stats
+```
+
+Order lists support `orderId`, `userId`, `status`, `from`, `to`, `page`,
+`size`, and `sort` query parameters.
+
+```bash
+curl 'http://localhost:8080/admin/orders?status=PENDING_PAYMENT' \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>'
+```
+
+### Admin payments
+
+```text
+GET  /admin/payments
+GET  /admin/payments/{id}
+POST /admin/payments/{id}/retry-verification
+GET  /admin/payments/stats
+```
+
+Payment lists support `paymentId`, `orderId`, `status`, `currency`,
+`minAmount`, `maxAmount`, `from`, `to`, `page`, `size`, and `sort`.
+
+```bash
+curl 'http://localhost:8080/admin/payments?status=MISMATCH' \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>'
+
+curl -X POST http://localhost:8080/admin/payments/1/retry-verification \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>'
+```
+
+Admin payment retry calls the same Bakong verification logic as the customer
+verification endpoint. Administrators cannot manually mark a payment
+`VERIFIED`, manually mark an order `PAID`, change transaction hashes, change
+the receiving account, or change `paidAt`.
+
+The `/internal/**` API is private service-to-service communication. It is not
+routed through the gateway and must never be called by the admin browser.
+
+## Login and registration
+
+Login and registration are handled by Keycloak with OpenID Connect. The local
+realm is available at `http://localhost:8180/realms/practice`, with the public
+frontend client `payment-web`. The frontend's **Sign in** and **Register**
+buttons open the Keycloak browser flow.
+
+After a successful login, the frontend sends the Keycloak access token as a
+Bearer token to the API gateway. User profiles, orders, and payments require
+authentication. Product reads are public. Creating products or legacy user
+records requires the `ADMIN` realm role.
+
+The first authenticated `GET /users/me` creates the signed-in user's profile in
+user-service. Existing database users and orders remain separate and are not
+automatically matched by email.
+
+The backend `.env` file contains the private `INTERNAL_SERVICE_TOKEN` used for
+payment-service to order-service communication. Never expose it to the
+frontend, Swagger, or logs.
 
 ## Database and configuration
 
