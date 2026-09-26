@@ -54,6 +54,9 @@ public class PaymentQr {
 
     private Instant paidAt;
 
+    @Column(length = 64)
+    private String failureReason;
+
     protected PaymentQr() { }
 
     public PaymentQr(String md5, Long orderId, String qr, BigDecimal amount, String currency,
@@ -83,6 +86,7 @@ public class PaymentQr {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getPaidAt() { return paidAt; }
+    public String getFailureReason() { return failureReason; }
 
     public void markVerified(String bakongHash, String fromAccountId, String toAccountId, Instant at) {
         this.status = PaymentStatus.VERIFIED;
@@ -90,16 +94,26 @@ public class PaymentQr {
         this.fromAccountId = fromAccountId;
         this.toAccountId = toAccountId;
         this.paidAt = at;
+        this.failureReason = null;
     }
 
-    public void markUnconfirmed() { this.status = PaymentStatus.UNCONFIRMED; }
+    public void markUnconfirmed() {
+        this.status = PaymentStatus.UNCONFIRMED;
+        this.failureReason = "TRANSACTION_NOT_FOUND";
+    }
 
-    public void markMismatch(String bakongHash, String fromAccountId, String toAccountId) {
+    public void markMismatch(String bakongHash, String fromAccountId, String toAccountId, String failureReason) {
         this.status = PaymentStatus.MISMATCH;
         this.bakongHash = bakongHash;
         this.fromAccountId = fromAccountId;
         this.toAccountId = toAccountId;
+        this.failureReason = failureReason;
     }
 
-    public void markExpired() { this.status = PaymentStatus.EXPIRED; }
+    public void markExpired() {
+        this.status = PaymentStatus.EXPIRED;
+        this.failureReason = "QR_EXPIRED";
+    }
+
+    public void markOrderSyncFailed() { this.failureReason = "ORDER_SYNC_FAILED"; }
 }
