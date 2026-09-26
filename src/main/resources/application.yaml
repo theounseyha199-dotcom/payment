@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: pracetice
+  datasource:
+    url: ${ROOT_DB_URL:jdbc:postgresql://localhost:55432/postgres}
+    username: ${DB_USERNAME:practice}
+    password: ${DB_PASSWORD:practice}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+server:
+  port: 8090
