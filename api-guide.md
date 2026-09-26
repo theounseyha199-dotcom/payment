@@ -135,6 +135,11 @@ There are currently no public update, delete, login, or direct charge endpoints.
 `PATCH /internal/orders/{orderId}/payment` belongs to the order service and is
 not routed through the gateway. The payment service uses it to set `PAID` after
 successful verification.
+`GET /internal/orders/{orderId}/payment-context` is also private. Admin payment
+retry uses this narrow service-to-service lookup so it can verify payments for
+another customer's order without granting the admin browser access to the
+customer's `GET /orders/{id}` endpoint. Neither internal endpoint is a frontend
+API.
 The old `POST /payments/verify` endpoint remains temporarily for existing
 clients, but new frontend code should use the payment ID URL above. The old
 endpoint is deprecated and hidden from Swagger.

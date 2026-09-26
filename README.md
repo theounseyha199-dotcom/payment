@@ -73,36 +73,51 @@ after startup. During that time a gateway route may return 503.
 
 ## Try the API
 
-Create a user and a product. Products are priced in **whole Cambodian riel
-(KHR)**:
+Sign in through Keycloak as a customer, then create or load that customer's
+application profile. Sign in separately as an administrator to create a
+product. Replace the token placeholders with the appropriate access tokens.
+Products are priced in **whole Cambodian riel (KHR)**:
 
 ```bash
-curl -X POST http://localhost:8080/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Seyha","email":"seyha@example.com"}'
+curl http://localhost:8080/users/me \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>'
 
 curl -X POST http://localhost:8080/products \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
   -H 'Content-Type: application/json' \
   -d '{"name":"Notebook","price":5500}'
 ```
 
-Use the IDs in those responses to create an order. For a new database, both
-IDs will usually be `1`:
+Use the application user ID returned by `/users/me` and the product ID to
+create an order. Replace the example IDs below with those values:
 
 ```bash
 curl -X POST http://localhost:8080/orders \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>' \
   -H 'Content-Type: application/json' \
   -d '{"userId":1,"productId":1,"quantity":2}'
 
-curl http://localhost:8080/orders/1
+curl http://localhost:8080/orders/1 \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>'
+```
+
+The legacy `POST /users` endpoint requires an administrator token. It creates
+an unlinked application profile, so its ID cannot be used to create an order
+for a newly signed-in customer:
+
+```bash
+curl -X POST http://localhost:8080/users \
+  -H 'Authorization: Bearer <ADMIN_ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Legacy Example","email":"legacy@example.com"}'
 ```
 
 The order stores the product price at the time of creation as `unitPrice`,
 calculates `totalAmount` with `BigDecimal`, and starts with status
 `PENDING_PAYMENT`. The frontend does not send an order status. A missing user
-or product prevents order creation. List or fetch records with `GET /users`,
-`GET /users/{id}`, `GET /products`, `GET /products/{id}`, `GET /orders`, and
-`GET /orders/{id}`.
+or product prevents order creation. `GET /users` requires `ADMIN`;
+`GET /users/{id}` requires the profile owner or `ADMIN`. Product reads are
+public, while order list and detail require the order owner.
 
 For the example product at 5,500 KHR and quantity 2, the order response has
 `totalAmount: 11000`, `currency: "KHR"`, and `status: "PENDING_PAYMENT"`.
@@ -154,6 +169,7 @@ Create a QR for an existing order (replace `1` with its actual ID):
 
 ```bash
 curl -X POST http://localhost:8080/payments/qr \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>' \
   -H 'Content-Type: application/json' \
   -d '{"orderId":1}'
 ```
@@ -170,7 +186,8 @@ After the customer scans and pays, verify using the `paymentId` from the QR
 response. The request has **no body**:
 
 ```bash
-curl -X POST http://localhost:8080/payments/1/verify
+curl -X POST http://localhost:8080/payments/1/verify \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>'
 ```
 
 The payment service loads the order ID, MD5, amount, currency, and receiving
@@ -180,7 +197,8 @@ temporarily for existing clients but is deprecated and hidden from Swagger.
 Read the saved payment and its current state with:
 
 ```bash
-curl http://localhost:8080/payments/1
+curl http://localhost:8080/payments/1 \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>'
 ```
 
 `GET /payments/{paymentId}` returns the payment ID, order ID, amount, KHR
@@ -192,7 +210,8 @@ After a successful payment and verification, this payment response shows
 `status: "VERIFIED"`. Confirm that the order was updated too:
 
 ```bash
-curl http://localhost:8080/orders/1
+curl http://localhost:8080/orders/1 \
+  -H 'Authorization: Bearer <USER_ACCESS_TOKEN>'
 ```
 
 The order response should then show `status: "PAID"`. The client sends only
@@ -325,6 +344,9 @@ the receiving account, or change `paidAt`.
 
 The `/internal/**` API is private service-to-service communication. It is not
 routed through the gateway and must never be called by the admin browser.
+Admin payment retry reads order payment context through the private
+`GET /internal/orders/{orderId}/payment-context` endpoint; customer order
+ownership rules still apply to `GET /orders/{id}`.
 
 ## Login and registration
 

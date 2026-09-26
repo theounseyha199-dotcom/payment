@@ -1,6 +1,6 @@
 # Backend project review
 
-Reviewed on 2026-09-26. This note describes the code currently in this repository. It does not describe the separate Next.js customer or admin projects.
+Reviewed and updated on 2026-09-26. This note describes the code currently in this repository. It does not describe the separate Next.js customer or admin projects.
 
 ## Project at a glance
 
@@ -60,18 +60,18 @@ QR creation gets the amount from order-service and reuses an unexpired active QR
 
 `run-all.sh` reads local `.env`, starts PostgreSQL and Keycloak, starts Eureka and all data services, starts the gateway, waits for `/products` through the gateway, and writes logs to `.run/logs`. `.env` and `.run/` are ignored by Git. Use `.env.example` for variable names; never put real tokens or passwords in this note or source control.
 
-## Findings to address
+## Stabilization findings addressed
 
-1. **Admin payment retry for another user's order can fail.** `AdminPaymentController.retry` calls `PaymentService.verify`, which calls `OrderClient.requireOrder`. That client requests customer `GET /orders/{id}` using the admin JWT, while `OrderService.getOwned` permits only the order's owner subject. An administrator investigating another user's payment can therefore receive an upstream 403, which `OrderClient` currently translates into a 503. Give this service-to-service lookup a narrowly authorized path that preserves customer ownership rules.
-2. **Soft deactivation does not fully prevent purchase.** `GET /products` hides inactive products, but public `GET /products/{id}` still returns them. `CatalogClient.requireProduct` uses that detail endpoint when creating orders. A customer who knows an inactive product ID can still order it.
-3. **Order synchronization failure reason may not persist.** `PaymentService.synchronizeOrder` calls `payment.markOrderSyncFailed()` after the earlier repository save, without another save. The `VERIFIED` status is persisted, but `ORDER_SYNC_FAILED` in `failureReason` is not guaranteed to be stored for a later admin detail request.
-4. **README's early curl examples omit authentication.** `POST /users` and `POST /products` now require `ADMIN`, while `POST /orders` requires a signed-in owner. The examples under “Try the API” predate that security behavior and will return 401 without a bearer token.
-5. **Security and HTTP integration coverage is limited.** The service-layer tests cover many order and payment rules, including the new JWT realm-role converters, but gateway and discovery currently have no test sources. There are no controller-level tests proving anonymous 401, normal-user 403, admin success, or gateway rejection of `/internal/**`.
+1. Admin payment retry now uses `GET /internal/orders/{orderId}/payment-context` with the private service token. Customer `GET /orders/{id}` still checks the owner's subject.
+2. Order creation rejects an `INACTIVE` product with HTTP 409, even when its ID is known.
+3. A failed order update persists `ORDER_SYNC_FAILED` while retaining payment status `VERIFIED`. A successful retry clears that reason without calling Bakong again.
+4. README curl examples now show the appropriate admin and customer bearer tokens and use `/users/me` for the customer's linked application profile.
+5. HTTP security tests cover anonymous 401, customer 403, admin success, the private order token, and gateway blocking of `/internal/**`. Ownership regression tests cover another customer's order and payment.
 
-These are review findings, not changes made as part of this documentation task.
+The next schema task is to migrate user-service, product-service, and order-service gradually from Hibernate `ddl-auto: update` to Flyway, preserving existing data. This is not done yet.
 
 ## Verification snapshot
 
-On 2026-09-26, all six `./gradlew -p <service> test --offline` commands completed successfully. The discovery-service and api-gateway test tasks reported `NO-SOURCE`; user-service, product-service, order-service, and payment-service had test classes. At the end of this review, ports 8761 and 8080 were not reachable, so this note does not claim a live end-to-end browser or Bakong check. Automated tests do not send a real Bakong payment.
+On 2026-09-26, all six `./gradlew -p <service> test --offline` commands completed successfully. Discovery-service reported `NO-SOURCE`; the gateway and four data services ran tests. `./run-all.sh` started all services; `/products` returned 200, the gateway denied `/internal/**`, and the private order lookup accepted the configured service token. The order-service startup log no longer showed its previous invalid status-column DDL warning. No real Bakong payment was sent.
 
 For setup and examples, see [README.md](README.md) and [api-guide.md](api-guide.md). The admin plan is in [admin.md](admin.md).
