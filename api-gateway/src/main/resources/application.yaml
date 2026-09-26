@@ -1,0 +1,66 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: users
+              uri: lb://user-service
+              predicates:
+                - Path=/users,/users/**
+            - id: products
+              uri: lb://product-service
+              predicates:
+                - Path=/products,/products/**
+            - id: orders
+              uri: lb://order-service
+              predicates:
+                - Path=/orders,/orders/**
+            - id: payments
+              uri: lb://payment-service
+              predicates:
+                - Path=/payments,/payments/**
+            - id: user-api-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/docs/users
+              filters:
+                - SetPath=/v3/api-docs
+            - id: product-api-docs
+              uri: lb://product-service
+              predicates:
+                - Path=/docs/products
+              filters:
+                - SetPath=/v3/api-docs
+            - id: order-api-docs
+              uri: lb://order-service
+              predicates:
+                - Path=/docs/orders
+              filters:
+                - SetPath=/v3/api-docs
+            - id: payment-api-docs
+              uri: lb://payment-service
+              predicates:
+                - Path=/docs/payments
+              filters:
+                - SetPath=/v3/api-docs
+springdoc:
+  swagger-ui:
+    disable-swagger-default-url: true
+    urls:
+      - name: User service
+        url: /docs/users
+      - name: Product service
+        url: /docs/products
+      - name: Order service
+        url: /docs/orders
+      - name: Payment service
+        url: /docs/payments
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
