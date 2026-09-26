@@ -2,7 +2,9 @@ package com.practice.order.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,11 +16,26 @@ import com.practice.order.entity.OrderStatus;
 import com.practice.order.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class OrderServiceTest {
+    @Test
+    void adminListSupportsPagination() {
+        OrderRepository orders = Mockito.mock(OrderRepository.class);
+        PurchaseOrder order = new PurchaseOrder(15L, 2L, 2, new BigDecimal("5500"));
+        when(orders.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(java.util.List.of(order), PageRequest.of(0, 20), 1));
+        var result = new OrderService(orders, Mockito.mock(CatalogClient.class))
+                .adminList(null, 15L, OrderStatus.PENDING_PAYMENT, null, null, PageRequest.of(0, 20));
+        assertEquals(1, result.totalElements());
+        assertTrue(result.first());
+        verify(orders).findAll(any(org.springframework.data.jpa.domain.Specification.class), eq(PageRequest.of(0, 20)));
+    }
+
     @Test
     void createsOrderUsingProductPrice() {
         OrderRepository orders = Mockito.mock(OrderRepository.class);

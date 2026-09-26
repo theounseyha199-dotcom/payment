@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -20,6 +22,12 @@ public class CatalogClient {
     public void requireUser(Long userId) {
         try {
             client.get().uri("http://user-service/users/{id}", userId)
+                    .headers(headers -> {
+                        if (SecurityContextHolder.getContext().getAuthentication()
+                                instanceof JwtAuthenticationToken token) {
+                            headers.setBearerAuth(token.getToken().getTokenValue());
+                        }
+                    })
                     .retrieve().toBodilessEntity();
         } catch (HttpClientErrorException.NotFound exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User does not exist");

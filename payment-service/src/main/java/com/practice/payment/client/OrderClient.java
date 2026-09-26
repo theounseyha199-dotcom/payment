@@ -3,7 +3,11 @@ package com.practice.payment.client;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import java.math.BigDecimal;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -13,14 +17,28 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class OrderClient {
     private final RestClient client;
+    private final String internalToken;
 
-    public OrderClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder) {
+    @Autowired
+    public OrderClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
+                       @Value("${internal.service-token:}") String internalToken) {
         this.client = builder.build();
+        this.internalToken = internalToken;
+    }
+
+    public OrderClient(RestClient.Builder builder) {
+        this(builder, "");
     }
 
     public OrderSummary requireOrder(Long orderId) {
         try {
             OrderEnvelope response = client.get().uri("http://order-service/orders/{id}", orderId)
+                    .headers(headers -> {
+                        if (SecurityContextHolder.getContext().getAuthentication()
+                                instanceof JwtAuthenticationToken token) {
+                            headers.setBearerAuth(token.getToken().getTokenValue());
+                        }
+                    })
                     .retrieve().body(OrderEnvelope.class);
             OrderSummary order = response == null ? null : response.data() != null
                     ? response.data() : new OrderSummary(response.id(), response.total());
@@ -38,6 +56,7 @@ public class OrderClient {
     public void markPaid(Long orderId) {
         try {
             client.patch().uri("http://order-service/internal/orders/{id}/payment", orderId)
+                    .header("X-Internal-Service-Token", internalToken)
                     .body(new PaymentUpdate("PAID"))
                     .retrieve().toBodilessEntity();
         } catch (HttpClientErrorException.NotFound exception) {

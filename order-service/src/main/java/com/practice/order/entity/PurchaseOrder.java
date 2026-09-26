@@ -21,6 +21,9 @@ public class PurchaseOrder {
     @Column(nullable = false)
     private Long userId;
 
+    @Column
+    private String ownerSubject;
+
     @Column(nullable = false)
     private Long productId;
 
@@ -53,8 +56,15 @@ public class PurchaseOrder {
         this.createdAt = Instant.now();
     }
 
+    public PurchaseOrder(Long userId, Long productId, int quantity, BigDecimal unitPrice,
+                         String ownerSubject) {
+        this(userId, productId, quantity, unitPrice);
+        this.ownerSubject = ownerSubject;
+    }
+
     public Long getId() { return id; }
     public Long getUserId() { return userId; }
+    public String getOwnerSubject() { return ownerSubject; }
     public Long getProductId() { return productId; }
     public int getQuantity() { return quantity; }
     public BigDecimal getUnitPrice() {
