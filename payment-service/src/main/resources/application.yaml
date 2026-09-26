@@ -1,0 +1,29 @@
+server:
+  port: 8084
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: ${PAYMENT_DB_URL:jdbc:postgresql://localhost:55432/paymentdb}
+    username: ${DB_USERNAME:practice}
+    password: ${DB_PASSWORD:practice}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+bakong:
+  base-url: ${BAKONG_BASE_URL:https://api-bakong.nbc.org.kh}
+  token: ${BAKONG_TOKEN:}
+  account-id: ${BAKONG_ACCOUNT_ID:}
+  currency: ${BAKONG_CURRENCY:KHR}
+  merchant-name: ${BAKONG_MERCHANT_NAME:}
+  merchant-city: ${BAKONG_MERCHANT_CITY:PHNOM PENH}
+  acquiring-bank: ${BAKONG_ACQUIRING_BANK:}
+  account-information: ${BAKONG_ACCOUNT_INFORMATION:}
