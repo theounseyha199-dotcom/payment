@@ -59,13 +59,28 @@ echo "Starting PostgreSQL..."
 docker compose up -d --wait postgres
 
 # Older PostgreSQL volumes may predate one or more services.
-for database in userdb productdb orderdb paymentdb; do
+for database in userdb productdb orderdb paymentdb keycloakdb; do
   exists=$(docker compose exec -T postgres psql -U practice -d postgres -tAc \
     "SELECT 1 FROM pg_database WHERE datname = '$database'")
   if [[ "$exists" != 1 ]]; then
     docker compose exec -T postgres psql -U practice -d postgres \
       -c "CREATE DATABASE $database"
   fi
+done
+
+echo "Starting Keycloak..."
+docker compose up -d keycloak
+for ((attempt = 0; attempt < 180; attempt++)); do
+  if curl --silent --fail --max-time 2 --output /dev/null \
+    'http://127.0.0.1:8180/realms/practice/.well-known/openid-configuration'; then
+    echo "Keycloak is ready on port 8180"
+    break
+  fi
+  if ((attempt == 179)); then
+    echo "Keycloak did not become ready. Check docker compose logs keycloak" >&2
+    exit 1
+  fi
+  sleep 1
 done
 
 mkdir -p "$log_dir"
@@ -114,7 +129,7 @@ wait_for_service api-gateway 8080 "${pids[5]}"
 ready=false
 for ((attempt = 0; attempt < 60; attempt++)); do
   status=$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
-    'http://127.0.0.1:8080/users' || true)
+    'http://127.0.0.1:8080/products' || true)
   if [[ "$status" == 200 ]]; then
     ready=true
     break
@@ -126,7 +141,7 @@ for ((attempt = 0; attempt < 60; attempt++)); do
   sleep 1
 done
 if [[ "$ready" != true ]]; then
-  echo "The gateway could not reach user-service within 60 seconds. Check $log_dir" >&2
+  echo "The gateway could not reach product-service within 60 seconds. Check $log_dir" >&2
   exit 1
 fi
 

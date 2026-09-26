@@ -1,0 +1,45 @@
+{
+  "realm": "practice",
+  "enabled": true,
+  "displayName": "Practice Payments",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "defaultRole": {
+    "name": "default-roles-practice"
+  },
+  "roles": {
+    "realm": [
+      { "name": "USER", "description": "Regular application user" },
+      { "name": "ADMIN", "description": "Manage the application admin APIs" },
+      {
+        "name": "default-roles-practice",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "composites": {
+          "realm": ["offline_access", "uma_authorization", "USER"],
+          "client": {
+            "account": ["manage-account", "view-profile"]
+          }
+        }
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "payment-web",
+      "name": "Payment web frontend",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ]
+}
