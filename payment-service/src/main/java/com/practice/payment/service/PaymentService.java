@@ -53,8 +53,18 @@ public class PaymentService {
     }
 
     public PaymentVerificationResponse verify(Long paymentId) {
+        return verify(paymentId, false);
+    }
+
+    public PaymentVerificationResponse verifyForAdmin(Long paymentId) {
+        return verify(paymentId, true);
+    }
+
+    private PaymentVerificationResponse verify(Long paymentId, boolean adminLookup) {
         PaymentQr payment = requirePayment(paymentId);
-        OrderSummary order = orders.requireOrder(payment.getOrderId());
+        OrderSummary order = adminLookup
+                ? orders.requirePaymentContext(payment.getOrderId())
+                : orders.requireOrder(payment.getOrderId());
         if (payment.getStatus() == PaymentStatus.VERIFIED) {
             synchronizeOrder(payment);
             return result(payment);
@@ -180,8 +190,13 @@ public class PaymentService {
                 ACTIVE_STATUSES, PaymentStatus.EXPIRED);
         try {
             orders.markPaid(payment.getOrderId());
+            if ("ORDER_SYNC_FAILED".equals(payment.getFailureReason())) {
+                payment.clearOrderSyncFailure();
+                qrRepository.save(payment);
+            }
         } catch (RuntimeException exception) {
             payment.markOrderSyncFailed();
+            qrRepository.save(payment);
             log.error("Payment verified but order update failed. paymentId={}, orderId={}",
                     payment.getId(), payment.getOrderId());
         }

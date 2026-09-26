@@ -151,4 +151,32 @@ class OrderServiceTest {
 
         assertEquals(404, error.getStatusCode().value());
     }
+
+    @Test
+    void paymentContextContainsOnlyRequiredOrderFields() {
+        OrderRepository orders = Mockito.mock(OrderRepository.class);
+        PurchaseOrder order = new PurchaseOrder(1L, 2L, 2, new BigDecimal("5500"), "customer-subject");
+        ReflectionTestUtils.setField(order, "id", 7L);
+        when(orders.findById(7L)).thenReturn(Optional.of(order));
+
+        var context = new OrderService(orders, Mockito.mock(CatalogClient.class)).paymentContext(7L);
+
+        assertEquals(new BigDecimal("11000"), context.totalAmount());
+        assertEquals(7L, context.id());
+        assertEquals("KHR", context.currency());
+        assertEquals(OrderStatus.PENDING_PAYMENT, context.status());
+    }
+
+    @Test
+    void customerCannotReadAnotherCustomersOrder() {
+        OrderRepository orders = Mockito.mock(OrderRepository.class);
+        when(orders.findById(7L)).thenReturn(Optional.of(new PurchaseOrder(
+                1L, 2L, 1, new BigDecimal("5500"), "owner-subject")));
+
+        var error = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> new OrderService(orders, Mockito.mock(CatalogClient.class))
+                        .getOwned(7L, "different-subject"));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
 }

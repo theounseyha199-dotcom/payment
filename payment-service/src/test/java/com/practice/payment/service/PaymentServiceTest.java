@@ -261,6 +261,45 @@ class PaymentServiceTest {
     }
 
     @Test
+    void adminRetryUsesInternalContextWithoutCustomerOrderLookup() {
+        when(orders.requirePaymentContext(1L))
+                .thenReturn(new OrderSummary(1L, new BigDecimal("40"), "PENDING_PAYMENT"));
+        when(bakong.checkTransaction(MD5)).thenReturn(new BakongResponse(0, null, "OK",
+                new Transaction("hash", "payer@bakong", "merchant@bakong", "KHR", new BigDecimal("40"), null)));
+
+        assertTrue(service.verifyForAdmin(1L).verified());
+
+        verify(orders).requirePaymentContext(1L);
+        verify(orders, never()).requireOrder(1L);
+        verify(orders).markPaid(1L);
+        verify(bakong).checkTransaction(MD5);
+    }
+
+    @Test
+    void adminRetryOfVerifiedPaymentSkipsBakong() {
+        when(orders.requirePaymentContext(1L))
+                .thenReturn(new OrderSummary(1L, new BigDecimal("40"), "PENDING_PAYMENT"));
+        qr.markVerified("hash", "payer@bakong", "merchant@bakong", Instant.now());
+
+        assertTrue(service.verifyForAdmin(1L).verified());
+
+        verify(orders).markPaid(1L);
+        verify(bakong, never()).checkTransaction(MD5);
+    }
+
+    @Test
+    void customerCannotVerifyAnotherCustomersPayment() {
+        when(orders.requireOrder(1L)).thenThrow(new ResponseStatusException(
+                org.springframework.http.HttpStatus.FORBIDDEN, "Access denied."));
+
+        var error = assertThrows(ResponseStatusException.class, () -> service.verify(1L));
+
+        assertEquals(403, error.getStatusCode().value());
+        verify(orders, never()).requirePaymentContext(1L);
+        verify(bakong, never()).checkTransaction(MD5);
+    }
+
+    @Test
     @ExtendWith(OutputCaptureExtension.class)
     void keepsVerifiedPaymentAndRetriesOrderUpdateWithoutCallingBakongAgain(CapturedOutput output) {
         when(bakong.checkTransaction(MD5)).thenReturn(new BakongResponse(0, null, "OK",
@@ -272,11 +311,13 @@ class PaymentServiceTest {
         assertTrue(service.verify(1L).verified());
         assertEquals(PaymentStatus.VERIFIED, qr.getStatus());
         assertTrue(qr.getPaidAt() != null);
+        assertEquals("ORDER_SYNC_FAILED", qr.getFailureReason());
         assertTrue(service.verify(1L).verified());
 
-        verify(qrRepository, times(1)).save(qr);
+        verify(qrRepository, times(3)).save(qr);
         verify(orders, times(2)).markPaid(1L);
         verify(bakong, times(1)).checkTransaction(MD5);
+        assertEquals(null, qr.getFailureReason());
         assertTrue(output.getAll().contains(
                 "Payment verified but order update failed. paymentId=1, orderId=1"));
     }

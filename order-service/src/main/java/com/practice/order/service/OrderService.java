@@ -4,6 +4,7 @@ import com.practice.order.client.CatalogClient;
 import com.practice.order.client.CatalogClient.ProductSummary;
 import com.practice.order.dto.CreateOrderRequest;
 import com.practice.order.dto.OrderResponse;
+import com.practice.order.dto.OrderPaymentContextResponse;
 import com.practice.order.dto.PageResponse;
 import com.practice.order.dto.OrderStatsResponse;
 import com.practice.order.entity.PurchaseOrder;
@@ -53,6 +54,12 @@ public class OrderService {
         PurchaseOrder order = orders.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         return OrderResponse.from(order);
+    }
+
+    public OrderPaymentContextResponse paymentContext(Long id) {
+        PurchaseOrder order = orders.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        return OrderPaymentContextResponse.from(order);
     }
 
     public OrderResponse getOwned(Long id, String subject) {

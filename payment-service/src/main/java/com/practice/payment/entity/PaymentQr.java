@@ -116,4 +116,8 @@ public class PaymentQr {
     }
 
     public void markOrderSyncFailed() { this.failureReason = "ORDER_SYNC_FAILED"; }
+
+    public void clearOrderSyncFailure() {
+        if ("ORDER_SYNC_FAILED".equals(failureReason)) this.failureReason = null;
+    }
 }

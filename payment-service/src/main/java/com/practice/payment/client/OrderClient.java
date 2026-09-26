@@ -13,6 +13,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.util.StringUtils;
 
 @Component
 public class OrderClient {
@@ -48,8 +49,34 @@ public class OrderClient {
             return order;
         } catch (HttpClientErrorException.NotFound exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
+        } catch (HttpClientErrorException.Forbidden exception) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied.");
         } catch (RestClientException exception) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Order service unavailable", exception);
+        }
+    }
+
+    public OrderSummary requirePaymentContext(Long orderId) {
+        if (!StringUtils.hasText(internalToken)) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Internal service configuration is unavailable.");
+        }
+        try {
+            OrderEnvelope response = client.get()
+                    .uri("http://order-service/internal/orders/{id}/payment-context", orderId)
+                    .header("X-Internal-Service-Token", internalToken)
+                    .retrieve().body(OrderEnvelope.class);
+            OrderSummary order = response == null ? null : response.data();
+            if (order == null || order.id() == null || order.total() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Order details are temporarily unavailable.");
+            }
+            return order;
+        } catch (HttpClientErrorException.NotFound exception) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Order service unavailable", exception);
         }
     }
 

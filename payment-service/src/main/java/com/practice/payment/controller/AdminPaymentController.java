@@ -61,7 +61,7 @@ public class AdminPaymentController {
 
     @PostMapping("/{id}/retry-verification")
     public ApiResult<PaymentVerificationResponse> retry(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
-        PaymentVerificationResponse result = payments.verify(id);
+        PaymentVerificationResponse result = payments.verifyForAdmin(id);
         audit.record(jwt.getSubject(), "PAYMENT_VERIFY_RETRY", id, null, Map.of("status", result.status()));
         return ApiResult.success("Payment verification retried.", result);
     }
