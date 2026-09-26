@@ -45,6 +45,9 @@ public class CatalogClient {
             if (product == null || product.id() == null || product.price() == null) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Product details are temporarily unavailable.");
             }
+            if (product.status() != null && !"ACTIVE".equals(product.status())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Product is not available.");
+            }
             return product;
         } catch (HttpClientErrorException.NotFound exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product does not exist");
@@ -53,7 +56,11 @@ public class CatalogClient {
         }
     }
 
-    public record ProductSummary(Long id, String name, BigDecimal price) { }
+    public record ProductSummary(Long id, String name, BigDecimal price, String status) {
+        public ProductSummary(Long id, String name, BigDecimal price) {
+            this(id, name, price, null);
+        }
+    }
     private record ProductEnvelope(String status, String message, ProductSummary data,
                                    Long id, String name, BigDecimal price) { }
 }

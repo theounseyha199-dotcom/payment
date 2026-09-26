@@ -1,6 +1,7 @@
 package com.practice.order.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 class CatalogClientTest {
     @Test
@@ -41,6 +43,24 @@ class CatalogClientTest {
 
         assertEquals(4L, product.id());
         assertEquals(new BigDecimal("40"), product.price());
+        server.verify();
+    }
+
+    @Test
+    void rejectsInactiveProductForOrderCreation() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://product-service/products/5"))
+                .andRespond(withSuccess("""
+                        {"status":"success","data":{"id":5,"name":"Notebook",
+                         "price":5500,"status":"INACTIVE"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var error = assertThrows(ResponseStatusException.class,
+                () -> new CatalogClient(builder).requireProduct(5L));
+
+        assertEquals(409, error.getStatusCode().value());
+        assertEquals("Product is not available.", error.getReason());
         server.verify();
     }
 }
